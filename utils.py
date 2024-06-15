@@ -49,6 +49,8 @@ import sys
 logging.basicConfig(stream=sys.stdout, level=logging.ERROR)
 logger = logging
 
+MATPLOTLIB_FLAG = False
+
 def load_wav_to_torch(full_path, force_sampling_rate=None):
     if force_sampling_rate is not None:
         data, sampling_rate = librosa.load(full_path, sr=force_sampling_rate)
@@ -241,6 +243,20 @@ def get_hparams(init=True):
   hparams.model_dir = model_dir
   return hparams
 
+def get_logger(model_dir, filename="train.log"):
+  global logger
+  logger = logging.getLogger(os.path.basename(model_dir))
+  logger.setLevel(logging.DEBUG)
+  
+  formatter = logging.Formatter("%(asctime)s\t%(name)s\t%(levelname)s\t%(message)s")
+  if not os.path.exists(model_dir):
+    os.makedirs(model_dir)
+  h = logging.FileHandler(os.path.join(model_dir, filename))
+  h.setLevel(logging.DEBUG)
+  h.setFormatter(formatter)
+  logger.addHandler(h)
+  return logger
+
 def latest_checkpoint_path(dir_path, regex="G_*.pth"):
   f_list = glob.glob(os.path.join(dir_path, regex))
   f_list.sort(key=lambda f: int("".join(filter(str.isdigit, f))))
@@ -248,7 +264,7 @@ def latest_checkpoint_path(dir_path, regex="G_*.pth"):
   print(x)
   return x
 
-def load_checkpoint(model, ema_model, optimizer, scaler, epoch,
+def load_checkpoint(model, optimizer, scaler, epoch,
                     total_iter, fp16_run, filepath):
     checkpoint = torch.load(filepath, map_location='cpu')
     epoch[0] = checkpoint['epoch'] + 1

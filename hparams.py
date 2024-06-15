@@ -8,10 +8,8 @@ from argparse import Namespace
 
 import torch
 
-from src.utilities.data import Normalise
-from src.utilities.text import symbols
-from src.utilities.text.cmudict import CMUDict
-
+from data_utils import Normalise
+from text import symbols
 
 def create_hparams(generate_parameters=False):
     """
@@ -51,35 +49,40 @@ def create_hparams(generate_parameters=False):
         ################################
         run_name="OverFlow",
         gpus=[0, 1],
+        distributed_run=True,
         max_epochs=50000,
         val_check_interval=100,
         save_model_checkpoint=500,
+        log_interval=20,
+        epochs_per_checkpoint=2,
         gradient_checkpoint=False,
         seed=1234,
         checkpoint_dir="checkpoints",
         tensorboard_log_dir="tb_logs",
         gradient_accumulation_steps=1,
-        precision=16,
+        precision=32,
+        fp16_run=False,
         # Placeholder to use it later while loading model
         logger=None,
         run_tests=False,
+        checkpoint_path=None,
         warm_start=False,
+        warm_start_checkpoint=None,
         ignore_layers=["model.embedding.weight"],
         ################################
         # Data Parameters             #
         ################################
-        batch_size=28,
+        batch_size=3,
         load_mel_from_disk=False,
-        training_files="data/filelists/ljs_audio_text_train_filelist.txt",
-        validation_files="data/filelists/ljs_audio_text_val_filelist.txt",
+        training_files="filelists/paper2_train_filelist.txt",
+        validation_files="filelists/paper2_val_filelist.txt",
         text_cleaners=["english_cleaners", "universal_cleaners", "universal_cleaners", "japanese_cleaners"],
         phonetise=False,
-        cmu_phonetiser=CMUDict("src/phonetised_files/cmudict-0.7b.txt"),
-        spk_embeds_path="/run/media/fourier/Data2/Pras/Thesis/Database/dataset_name/spk_embeds/",
-        emo_embeds_path="/run/media/fourier/Data2/Pras/Thesis/Database/dataset_name/emo_embeds/",
+        spk_embeds_path="/run/media/viblab/Markov2/Pras/Thesis/Database/dataset_name/spk_embeds/",
+        emo_embeds_path="/run/media/viblab/Markov2/Pras/Thesis/Database/dataset_name/emo_embeds/",
         database_name_index=8,
-        gin_channels=256,
-        emoin_channels=256,
+        gin_channels=128,
+        emoin_channels=128,
         lin_channels=4,
         num_workers=20,
         n_lang=10,
@@ -108,7 +111,7 @@ def create_hparams(generate_parameters=False):
         # Model Parameters             #
         ################################
         n_symbols=len(symbols),
-        symbols_embedding_dim=512,
+        symbols_embedding_dim=508,
         ################################
         # Encoder parameters           #
         ################################
@@ -132,7 +135,7 @@ def create_hparams(generate_parameters=False):
         ################################
         # Prenet parameters            #
         ################################
-        prenet_n_layers=2,
+        prenet_n_layers=3,
         prenet_dim=256,
         prenet_dropout=0.5,
         prenet_dropout_while_eval=True,
@@ -156,13 +159,15 @@ def create_hparams(generate_parameters=False):
         n_split=4,
         n_sqz=2,
         sigmoid_scale=False,
-        gin_channels=0,
         ################################
         # Optimization Hyperparameters #
         ################################
         learning_rate=1e-3,
         weight_decay=1e-6,
-        grad_clip_thresh=40000.0,
+        warmup_steps=8000,
+        betas=[0.8, 0.99],
+        eps=1e-9,
+        grad_clip_thresh=1000.0,
         stochastic_weight_avg=False,
     )
 

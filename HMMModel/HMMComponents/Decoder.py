@@ -4,8 +4,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from src.model.layers import LinearReluInitNorm
-from src.utilities.functions import inverse_sigmod, inverse_softplus
+from modules import LinearReluInitNorm
+from commons import inverse_sigmod, inverse_softplus
 
 
 class ParameterModel(nn.Module):
@@ -86,7 +86,7 @@ class Decoder(nn.Module):
         super().__init__()
         self.hparams = hparams
 
-        input_size = hparams.post_prenet_rnn_dim + hparams.encoder_embedding_dim
+        input_size = hparams.post_prenet_rnn_dim + hparams.encoder_embedding_dim + hparams.gin_channels + hparams.emoin_channels
         output_size = 2 * hparams.n_mel_channels + 1
 
         self.validate_parameters()

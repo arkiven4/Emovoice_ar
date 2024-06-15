@@ -7,12 +7,13 @@ import random
 
 import numpy as np
 import torch
+import os
 from nltk import word_tokenize
 from scipy.io.wavfile import read
 from torch.utils.data.dataset import Dataset
 
-from src.model.layers import TacotronSTFT
-from src.utilities.text import phonetise_text, text_to_sequence
+from commons import TacotronSTFT
+from text import text_to_sequence
 
 
 def load_wav_to_torch(full_path):
@@ -109,7 +110,6 @@ class TextMelLoader(Dataset):
         self.max_wav_value = hparams.max_wav_value
         self.sampling_rate = hparams.sampling_rate
         self.phonetise = hparams.phonetise
-        self.cmu_phonetiser = hparams.cmu_phonetiser
         self.load_mel_from_disk = hparams.load_mel_from_disk
         self.stft = TacotronSTFT(
             hparams.filter_length,
@@ -120,11 +120,19 @@ class TextMelLoader(Dataset):
             hparams.mel_fmin,
             hparams.mel_fmax,
         )
+        self.hop_length = hparams.hop_length
         self.spk_embeds_path = hparams.spk_embeds_path
         self.emo_embeds_path = hparams.emo_embeds_path
         self.database_name_index = hparams.database_name_index
         random.seed(hparams.seed)
         random.shuffle(self.audiopaths_and_text)
+        self._filter_text_len()
+
+    def _filter_text_len(self):
+      lengths = []
+      for audiopath, sid, text in self.audiopaths_and_text:
+          lengths.append(os.path.getsize(audiopath) // (2 * self.hop_length))
+      self.lengths = lengths
 
     def get_mel_text_pair(self, audiopath_and_text):
         r"""
@@ -139,12 +147,12 @@ class TextMelLoader(Dataset):
         database_name = audiopath.split("/")[self.database_name_index]
 
         # This text is int tensor of the input representation
-        text = self.get_text(text)
+        text = self.get_text(text, lid)
         mel = self.get_mel(audiopath)
         lang = self.get_lid(lid)
 
         speaker = torch.Tensor(np.load(f"{self.spk_embeds_path.replace('dataset_name', database_name)}/{filename}.npy"))
-        emo = torch.Tensor(np.load(f"{self.spk_embeds_path.replace('dataset_name', database_name)}/{filename}.npy"))
+        emo = torch.Tensor(np.load(f"{self.emo_embeds_path.replace('dataset_name', database_name)}/{filename}.npy"))
         
         if self.transform:
             for t in self.transform:
@@ -176,10 +184,7 @@ class TextMelLoader(Dataset):
         return melspec
 
     def get_text(self, text, lid):
-        if self.phonetise:
-            text = phonetise_text(self.cmu_phonetiser, text, word_tokenize)
-
-        text_norm = torch.IntTensor(text_to_sequence(text, self.text_cleaners[lid]))
+        text_norm = torch.IntTensor(text_to_sequence(text, self.text_cleaners[int(lid)]))
         return text_norm
 
     def get_lid(self, lid):

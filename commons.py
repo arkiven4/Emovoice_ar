@@ -252,3 +252,9 @@ def unsqueeze(x, x_mask=None, n_sqz=2):
     else:
         x_mask = torch.ones(b, 1, t * n_sqz).to(device=x.device, dtype=x.dtype)
     return x_unsqz * x_mask, x_mask
+
+def to_gpu(x):
+    x = x.contiguous()
+    if torch.cuda.is_available():
+        x = x.cuda(non_blocking=True)
+    return torch.autograd.Variable(x)

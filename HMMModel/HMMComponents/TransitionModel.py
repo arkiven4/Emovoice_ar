@@ -6,7 +6,7 @@ state.
 import torch
 import torch.nn as nn
 
-from src.utilities.functions import log_clamped, logsumexp
+from commons import log_clamped, logsumexp
 
 
 class TransitionModel(nn.Module):

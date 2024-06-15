@@ -7,28 +7,9 @@ from torch.nn import functional as F
 from HMMModel.HMM import HMM
 from modules import LinearReluInitNorm, ConvNorm, ActNorm, InvConvNear, CouplingBlock
 
-from commons import get_mask_from_len, squeeze, unsqueeze
+from commons import get_mask_from_len, squeeze, unsqueeze, to_gpu
+from modules import Prenet
 
-class Prenet(nn.Module):
-    r"""
-    MLP prenet module
-    """
-
-    def __init__(self, in_dim, n_layers, prenet_dim, prenet_dropout):
-        super().__init__()
-        in_sizes = [in_dim] + [prenet_dim for _ in range(n_layers)]
-        self.prenet_dropout = prenet_dropout
-        self.layers = nn.ModuleList(
-            [
-                LinearReluInitNorm(in_size, out_size, bias=False)
-                for (in_size, out_size) in zip(in_sizes[:-1], in_sizes[1:])
-            ]
-        )
-
-    def forward(self, x, dropout_flag):
-        for linear in self.layers:
-            x = F.dropout(linear(x), p=self.prenet_dropout, training=dropout_flag)
-        return x
 
 class Encoder(nn.Module):
     """Encoder module:
@@ -230,15 +211,15 @@ class OverFlow(nn.Module):
 
         """
         text_padded, input_lengths, mel_padded, gate_padded, output_lengths, langs, speakers, emos = batch
-        text_padded = text_padded.long()
-        input_lengths = input_lengths.long()
+        text_padded = to_gpu(text_padded).long()
+        input_lengths = to_gpu(input_lengths).long()
         max_len = torch.max(input_lengths.data).item()
-        mel_padded = mel_padded.float()
-        gate_padded = gate_padded.float()
-        output_lengths = output_lengths.long()
-        langs = langs.long()
-        speakers = speakers.float()
-        emos = emos.float()
+        mel_padded = to_gpu(mel_padded).float()
+        gate_padded = to_gpu(gate_padded).float()
+        output_lengths = to_gpu(output_lengths).long()
+        langs = to_gpu(langs).long()
+        speakers = to_gpu(speakers).float()
+        emos = to_gpu(emos).float()
 
         return (
             (text_padded, input_lengths, mel_padded, max_len, output_lengths, langs, speakers, emos),
@@ -249,17 +230,18 @@ class OverFlow(nn.Module):
         text_inputs, text_lengths, mels, max_len, mel_lengths, langs, speakers, emos = inputs
         text_lengths, mel_lengths = text_lengths.data, mel_lengths.data
 
-        l = self.emb_l(langs)
-        g = self.emb_g(speakers)
-        emo = self.emb_emo(emos)
+        l = self.emb_l(langs).unsqueeze(-1)
+        g = self.emb_g(speakers).unsqueeze(-1)
+        emo = self.emb_emo(emos).unsqueeze(-1)
         
-        embedded_inputs = self.embedding(text_inputs).transpose(1, 2)
-        print(embedded_inputs.shape)
-        print(l.transpose(2, 1).expand(embedded_inputs.size(0), embedded_inputs.size(1), -1).shape)
-        embedded_inputs = torch.cat((embedded_inputs, l.transpose(2, 1).expand(embedded_inputs.size(0), embedded_inputs.size(1), -1)), dim=-1)
+        embedded_inputs = self.embedding(text_inputs).transpose(1, 2) # [28, 512, 65]
+        embedded_inputs = torch.cat((embedded_inputs, l.expand(embedded_inputs.size(0), -1, embedded_inputs.size(2))), dim=1)
         encoder_outputs, text_lengths = self.encoder(embedded_inputs, text_lengths)
 
-        encoder_outputs = torch.cat([encoder_outputs, g, emo], -1)
+        g_exp = g.transpose(1, 2).expand(-1, encoder_outputs.size(1), -1)
+        emo_exp = emo.transpose(1, 2).expand(-1,encoder_outputs.size(1), -1)
+        encoder_outputs = torch.cat([encoder_outputs, g_exp, emo_exp], -1)
+
         z, z_lengths, logdet = self.decoder(mels, mel_lengths, g=g, emo=emo)
         log_probs = self.hmm(encoder_outputs, text_lengths, z, z_lengths)
         loss = (log_probs + logdet) / (text_lengths.sum() + mel_lengths.sum())
@@ -286,16 +268,19 @@ class OverFlow(nn.Module):
         if text_lengths is None:
             text_lengths = text_inputs.new_tensor(text_inputs.shape[0])
 
-        l = self.emb_l(langs)
-        g = self.emb_g(speakers)
-        emo = self.emb_emo(emos)
+        l = self.emb_l(langs).unsqueeze(0).unsqueeze(-1)
+        g = self.emb_g(speakers).unsqueeze(0).unsqueeze(-1)
+        emo = self.emb_emo(emos).unsqueeze(0).unsqueeze(-1)
 
         text_inputs, text_lengths = text_inputs.unsqueeze(0), text_lengths.unsqueeze(0)
         embedded_inputs = self.embedding(text_inputs).transpose(1, 2)
-        embedded_inputs = torch.cat((embedded_inputs, l.transpose(2, 1).expand(embedded_inputs.size(0), embedded_inputs.size(1), -1)), dim=-1)
+        embedded_inputs = torch.cat((embedded_inputs, l.expand(embedded_inputs.size(0), -1, embedded_inputs.size(2))), dim=1)
 
         encoder_outputs, text_lengths = self.encoder(embedded_inputs, text_lengths)
-        encoder_outputs = torch.cat([encoder_outputs, g, emo], -1)
+
+        g_exp = g.transpose(1, 2).expand(-1, encoder_outputs.size(1), -1)
+        emo_exp = emo.transpose(1, 2).expand(-1,encoder_outputs.size(1), -1)
+        encoder_outputs = torch.cat([encoder_outputs, g_exp, emo_exp], -1)
         
         (
             mel_latent,
@@ -315,3 +300,4 @@ class OverFlow(nn.Module):
 
     def store_inverse(self):
         self.decoder.store_inverse()
+

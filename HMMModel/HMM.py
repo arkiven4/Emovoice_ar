@@ -3,11 +3,11 @@ from torch import nn
 from torch.nn import functional as F
 from torch.utils.checkpoint import checkpoint
 
-from src.model.HMMComponents.Decoder import Decoder
-from src.model.HMMComponents.EmissionModel import EmissionModel
-from src.model.HMMComponents.TransitionModel import TransitionModel
-from src.model.Prenet import Prenet
-from src.utilities.functions import log_clamped
+from HMMModel.HMMComponents.Decoder import Decoder
+from HMMModel.HMMComponents.EmissionModel import EmissionModel
+from HMMModel.HMMComponents.TransitionModel import TransitionModel
+from modules import Prenet
+from commons import log_clamped
 
 
 class HMM(nn.Module):
@@ -332,7 +332,7 @@ class HMM(nn.Module):
 
         # Uncomment the line below if you get nan values because of low precision
         # in half precision training
-        # final_log_c = final_log_c.clamp(min=torch.finfo(final_log_c.dtype).min)
+        final_log_c = final_log_c.clamp(min=torch.finfo(final_log_c.dtype).min)
 
         sum_final_log_c = torch.logsumexp(final_log_c, dim=1)
         return sum_final_log_c

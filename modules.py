@@ -7,9 +7,29 @@ from torch.nn import functional as F
 import torch
 import torch.nn as nn
 
-from src.utilities.functions import fused_add_tanh_sigmoid_multiply
+from commons import fused_add_tanh_sigmoid_multiply
 
+class Prenet(nn.Module):
+    r"""
+    MLP prenet module
+    """
 
+    def __init__(self, in_dim, n_layers, prenet_dim, prenet_dropout):
+        super().__init__()
+        in_sizes = [in_dim] + [prenet_dim for _ in range(n_layers)]
+        self.prenet_dropout = prenet_dropout
+        self.layers = nn.ModuleList(
+            [
+                LinearReluInitNorm(in_size, out_size, bias=False)
+                for (in_size, out_size) in zip(in_sizes[:-1], in_sizes[1:])
+            ]
+        )
+
+    def forward(self, x, dropout_flag):
+        for linear in self.layers:
+            x = F.dropout(linear(x), p=self.prenet_dropout, training=dropout_flag)
+        return x
+    
 class LayerNorm(nn.Module):
     def __init__(self, channels, eps=1e-4):
         super().__init__()
