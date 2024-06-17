@@ -1,2 +1,3 @@
 source /run/media/viblab/Markov2/Pras/Thesis/TryMyOwn/glow-tts/.env/bin/activate
+python generate_data_properties.py
 TORCH_DISTRIBUTED_DEBUG=DETAIL python train.py -c configs/base_blank_emo_lang_pitch.json -m base_blank_emo_lang_pitch

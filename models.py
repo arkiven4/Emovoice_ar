@@ -182,7 +182,7 @@ class OverFlow(nn.Module):
             std = sqrt(2.0 / (hparams.n_symbols + hparams.symbols_embedding_dim))
             val = sqrt(3.0) * std  # uniform bounds for std
             self.embedding.weight.data.uniform_(-val, val)
-
+        
         # Data Properties
         self.normaliser = hparams.normaliser
 
@@ -196,10 +196,10 @@ class OverFlow(nn.Module):
         torch.nn.init.xavier_uniform_(self.emb_l.weight)
 
         print("Use Speaker Embed Linear Norm")
-        self.emb_g = nn.Linear(512, hparams.gin_channels)
+        self.emb_g = nn.Linear(hparams.gin_channels, hparams.symbols_embedding_dim + hparams.lin_channels)
 
         print("Use Emo Embed Linear Norm")
-        self.emb_emo = nn.Linear(1024, hparams.gin_channels)
+        self.emb_emo = nn.Linear(hparams.emoin_channels, hparams.symbols_embedding_dim + hparams.lin_channels)
 
     def parse_batch(self, batch):
         """
@@ -231,18 +231,18 @@ class OverFlow(nn.Module):
         text_lengths, mel_lengths = text_lengths.data, mel_lengths.data
 
         l = self.emb_l(langs).unsqueeze(-1)
-        g = self.emb_g(speakers).unsqueeze(-1)
-        emo = self.emb_emo(emos).unsqueeze(-1)
+        g_proj = self.emb_g(speakers).unsqueeze(-1)
+        emo_proj = self.emb_emo(emos).unsqueeze(-1)
         
         embedded_inputs = self.embedding(text_inputs).transpose(1, 2) # [28, 512, 65]
         embedded_inputs = torch.cat((embedded_inputs, l.expand(embedded_inputs.size(0), -1, embedded_inputs.size(2))), dim=1)
         encoder_outputs, text_lengths = self.encoder(embedded_inputs, text_lengths)
 
-        g_exp = g.transpose(1, 2).expand(-1, encoder_outputs.size(1), -1)
-        emo_exp = emo.transpose(1, 2).expand(-1,encoder_outputs.size(1), -1)
-        encoder_outputs = torch.cat([encoder_outputs, g_exp, emo_exp], -1)
+        g_exp = g_proj.transpose(1, 2).expand(-1, encoder_outputs.size(1), -1)
+        emo_exp = emo_proj.transpose(1, 2).expand(-1,encoder_outputs.size(1), -1)
+        encoder_outputs = encoder_outputs + g_exp + emo_exp
 
-        z, z_lengths, logdet = self.decoder(mels, mel_lengths, g=g, emo=emo)
+        z, z_lengths, logdet = self.decoder(mels, mel_lengths, g=speakers.unsqueeze(-1), emo=emos.unsqueeze(-1))
         log_probs = self.hmm(encoder_outputs, text_lengths, z, z_lengths)
         loss = (log_probs + logdet) / (text_lengths.sum() + mel_lengths.sum())
         return loss
@@ -269,8 +269,8 @@ class OverFlow(nn.Module):
             text_lengths = text_inputs.new_tensor(text_inputs.shape[0])
 
         l = self.emb_l(langs).unsqueeze(0).unsqueeze(-1)
-        g = self.emb_g(speakers).unsqueeze(0).unsqueeze(-1)
-        emo = self.emb_emo(emos).unsqueeze(0).unsqueeze(-1)
+        g_proj = self.emb_g(speakers).unsqueeze(0).unsqueeze(-1)
+        emo_proj = self.emb_emo(emos).unsqueeze(0).unsqueeze(-1)
 
         text_inputs, text_lengths = text_inputs.unsqueeze(0), text_lengths.unsqueeze(0)
         embedded_inputs = self.embedding(text_inputs).transpose(1, 2)
@@ -278,9 +278,9 @@ class OverFlow(nn.Module):
 
         encoder_outputs, text_lengths = self.encoder(embedded_inputs, text_lengths)
 
-        g_exp = g.transpose(1, 2).expand(-1, encoder_outputs.size(1), -1)
-        emo_exp = emo.transpose(1, 2).expand(-1,encoder_outputs.size(1), -1)
-        encoder_outputs = torch.cat([encoder_outputs, g_exp, emo_exp], -1)
+        g_exp = g_proj.transpose(1, 2).expand(-1, encoder_outputs.size(1), -1)
+        emo_exp = emo_proj.transpose(1, 2).expand(-1,encoder_outputs.size(1), -1)
+        encoder_outputs = encoder_outputs + g_exp + emo_exp
         
         (
             mel_latent,
@@ -290,7 +290,7 @@ class OverFlow(nn.Module):
         ) = self.hmm.sample(encoder_outputs, sampling_temp=sampling_temp)
 
         mel_output, mel_lengths, _ = self.decoder(
-            mel_latent.unsqueeze(0).transpose(1, 2), text_lengths.new_tensor([mel_latent.shape[0]]), reverse=True
+            mel_latent.unsqueeze(0).transpose(1, 2), text_lengths.new_tensor([mel_latent.shape[0]]), reverse=True, g=speakers.unsqueeze(0).unsqueeze(-1), emo=emos.unsqueeze(0).unsqueeze(-1)
         )
 
         if self.normaliser:

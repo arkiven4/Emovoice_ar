@@ -66,23 +66,23 @@ def create_hparams(generate_parameters=False):
         logger=None,
         run_tests=False,
         checkpoint_path=None,
-        warm_start=False,
-        warm_start_checkpoint=None,
-        ignore_layers=["model.embedding.weight"],
+        warm_start=True,
+        warm_start_checkpoint="OverFlow-Female.ckpt",
+        ignored_layer=[],
         ################################
         # Data Parameters             #
         ################################
         batch_size=3,
         load_mel_from_disk=False,
-        training_files="filelists/paper2_train_filelist.txt",
-        validation_files="filelists/paper2_val_filelist.txt",
+        training_files="filelists/runpod_train_filelist.txt",
+        validation_files="filelists/runpod_val_filelist.txt",
         text_cleaners=["english_cleaners", "universal_cleaners", "universal_cleaners", "japanese_cleaners"],
         phonetise=False,
         spk_embeds_path="/run/media/viblab/Markov2/Pras/Thesis/Database/dataset_name/spk_embeds/",
         emo_embeds_path="/run/media/viblab/Markov2/Pras/Thesis/Database/dataset_name/emo_embeds/",
         database_name_index=8,
-        gin_channels=128,
-        emoin_channels=128,
+        gin_channels=512,
+        emoin_channels=1024,
         lin_channels=4,
         num_workers=20,
         n_lang=10,
@@ -135,7 +135,7 @@ def create_hparams(generate_parameters=False):
         ################################
         # Prenet parameters            #
         ################################
-        prenet_n_layers=3,
+        prenet_n_layers=2,
         prenet_dim=256,
         prenet_dropout=0.5,
         prenet_dropout_while_eval=True,
@@ -162,7 +162,7 @@ def create_hparams(generate_parameters=False):
         ################################
         # Optimization Hyperparameters #
         ################################
-        learning_rate=1e-3,
+        learning_rate=2e-4,
         weight_decay=1e-6,
         warmup_steps=8000,
         betas=[0.8, 0.99],

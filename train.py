@@ -176,7 +176,7 @@ def train_and_eval(rank, n_gpus, hps):
                 iter_start_time = time.perf_counter()
 
                 #adjust_learning_rate(total_iter, optimizer, hps.learning_rate, hps.warmup_steps)
-                adjust_learning_rate_myown(180000, total_iter, optimizer, hps.learning_rate, 1e-4)
+                adjust_learning_rate_myown(180000, total_iter, optimizer, hps.learning_rate, 5e-5)
                 model.zero_grad()
 
             x, y = model.module.parse_batch(batch)
